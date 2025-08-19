@@ -1,0 +1,65 @@
+# TheReserve
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel Data Filter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="p-6 max-w-5xl mx-auto">
+  <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />  <div id="filters" class="mt-6 hidden">
+    <label class="block font-semibold">Select Country:</label>
+    <select id="countrySelect" class="border p-2 rounded mb-4"></select><div id="columnFilters" class="grid grid-cols-2 gap-4"></div>
+
+<div class="mt-6">
+  <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
+  <table id="resultsTable" class="w-full border text-sm"></table>
+</div>
+
+  </div>  <script>
+    let data = [];
+    let columns = [];
+
+    document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+
+      reader.onload = (evt) => {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        data = XLSX.utils.sheet_to_json(ws);
+
+        if (data.length === 0) return;
+
+        columns = Object.keys(data[0]);
+        setupFilters();
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    function uniqueValues(col) {
+      return [...new Set(data.map((row) => row[col]))].filter(v => v !== undefined && v !== null);
+    }
+
+    function setupFilters() {
+      document.getElementById('filters').classList.remove('hidden');
+
+      // Setup country select
+      const countrySelect = document.getElementById('countrySelect');
+      countrySelect.innerHTML = '<option value="">All</option>' + uniqueValues('Country').map(c => `<option value="${c}">${c}</option>`).join('');
+
+      countrySelect.onchange = applyFilters;
+
+      // Setup other column filters
+      const columnFilters = document.getElementById('columnFilters');
+      columnFilters.innerHTML = '';
+      columns.filter(col => col !== 'Country').forEach(col => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+          <label class="block font-semibold">${col}</label>
+          <select id="filter-${col}"
