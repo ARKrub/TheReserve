@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,24 +6,27 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
-<body class="p-6 max-w-5xl mx-auto">
-  <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>
+<body class="bg-gray-50 p-6 min-h-screen font-sans">
+  <div class="max-w-6xl mx-auto bg-white shadow-md rounded-lg p-8">
+    <h1 class="text-3xl font-bold mb-6 text-center text-indigo-600">Excel Data Filter</h1><div class="mb-6 text-center">
+  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="border border-gray-300 rounded px-4 py-2 shadow hover:border-indigo-500 transition" />
+</div>
 
-  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />
-
-  <div id="filters" class="mt-6 hidden">
-    <label class="block font-semibold">Select Year:</label>
-    <select id="yearSelect" class="border p-2 rounded mb-4"></select>
-
-    <div id="columnCheckboxes" class="grid grid-cols-2 gap-4 mb-4"></div>
-
-    <div class="mt-6">
-      <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
-      <table id="resultsTable" class="w-full border text-sm"></table>
-    </div>
+<div id="filters" class="mt-6 hidden">
+  <div class="mb-4">
+    <label class="block font-semibold mb-2 text-gray-700">Select Year:</label>
+    <select id="yearSelect" class="w-full border border-gray-300 rounded px-4 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"></select>
   </div>
 
-  <script>
+  <div id="columnCheckboxes" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6"></div>
+
+  <div class="mt-6 overflow-x-auto">
+    <h2 class="text-2xl font-bold mb-4 text-gray-800">Filtered Results</h2>
+    <table id="resultsTable" class="w-full border-collapse border border-gray-300 text-sm shadow-sm"></table>
+  </div>
+</div>
+
+  </div>  <script>
     let data = [];
     let columns = [];
     let filters = {};
@@ -86,9 +88,9 @@
         const id = `checkbox-${col}`;
         const wrapper = document.createElement('div');
         wrapper.innerHTML = `
-          <label class="inline-flex items-center">
+          <label class="inline-flex items-center bg-gray-100 rounded px-3 py-2 shadow-sm hover:bg-indigo-50 cursor-pointer">
             <input type="checkbox" id="${id}" checked class="mr-2">
-            ${col}
+            <span class="text-gray-700 font-medium">${col}</span>
           </label>
         `;
         container.appendChild(wrapper);
@@ -105,4 +107,18 @@
 
       if(displayColumns.length === 0) return;
 
-      const header = `<tr>${displayColumns.map(c => `<th class="border p-2">${c}</th>`).join('')}</tr>`;
+      const header = `<tr>${displayColumns.map(c => `<th class="border border-gray-300 p-2 bg-indigo-100 text-gray-800">${c}</th>`).join('')}</tr>`;
+      resultsTable.innerHTML += header;
+
+      const filtered = data.filter(row => {
+        if(filters['Year'] && row['Year'] != filters['Year']) return false;
+        return true;
+      });
+
+      filtered.forEach(row => {
+        const tr = `<tr>${displayColumns.map(c => `<td class="border border-gray-300 p-2 text-gray-700">${row[c] || ''}</td>`).join('')}</tr>`;
+        resultsTable.innerHTML += tr;
+      });
+    }
+  </script></body>
+</html>
