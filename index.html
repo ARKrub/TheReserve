@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,18 +8,26 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="p-6 max-w-5xl mx-auto">
-  <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />  <div id="filters" class="mt-6 hidden">
+  <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>
+
+  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />
+
+  <div id="filters" class="mt-6 hidden">
     <label class="block font-semibold">Select Country:</label>
-    <select id="countrySelect" class="border p-2 rounded mb-4"></select><div id="columnFilters" class="grid grid-cols-2 gap-4"></div>
+    <select id="countrySelect" class="border p-2 rounded mb-4"></select>
 
-<div class="mt-6">
-  <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
-  <table id="resultsTable" class="w-full border text-sm"></table>
-</div>
+    <div id="columnFilters" class="grid grid-cols-2 gap-4"></div>
 
-  </div>  <script>
+    <div class="mt-6">
+      <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
+      <table id="resultsTable" class="w-full border text-sm"></table>
+    </div>
+  </div>
+
+  <script>
     let data = [];
     let columns = [];
+    let filters = {};
 
     document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
 
@@ -37,6 +46,7 @@
 
         columns = Object.keys(data[0]);
         setupFilters();
+        applyFilters();
       };
       reader.readAsBinaryString(file);
     }
@@ -51,8 +61,7 @@
       // Setup country select
       const countrySelect = document.getElementById('countrySelect');
       countrySelect.innerHTML = '<option value="">All</option>' + uniqueValues('Country').map(c => `<option value="${c}">${c}</option>`).join('');
-
-      countrySelect.onchange = applyFilters;
+      countrySelect.onchange = () => { filters['Country'] = countrySelect.value; applyFilters(); };
 
       // Setup other column filters
       const columnFilters = document.getElementById('columnFilters');
@@ -61,4 +70,42 @@
         const wrapper = document.createElement('div');
         wrapper.innerHTML = `
           <label class="block font-semibold">${col}</label>
-          <select id="filter-${col}"
+          <select id="filter-${col}" class="border p-2 rounded w-full">
+            <option value="">All</option>
+            ${uniqueValues(col).map(val => `<option value="${val}">${val}</option>`).join('')}
+          </select>
+        `;
+        columnFilters.appendChild(wrapper);
+
+        document.getElementById(`filter-${col}`).onchange = (e) => {
+          filters[col] = e.target.value;
+          applyFilters();
+        };
+      });
+    }
+
+    function applyFilters() {
+      const resultsTable = document.getElementById('resultsTable');
+      resultsTable.innerHTML = '';
+
+      // Build header
+      const header = `<tr>${columns.map(c => `<th class="border p-2">${c}</th>`).join('')}</tr>`;
+      resultsTable.innerHTML += header;
+
+      // Filter data
+      const filtered = data.filter(row => {
+        for (let col in filters) {
+          if (filters[col] && row[col] != filters[col]) return false;
+        }
+        return true;
+      });
+
+      // Add rows
+      filtered.forEach(row => {
+        const tr = `<tr>${columns.map(c => `<td class="border p-2">${row[c] || ''}</td>`).join('')}</tr>`;
+        resultsTable.innerHTML += tr;
+      });
+    }
+  </script>
+</body>
+</html>
