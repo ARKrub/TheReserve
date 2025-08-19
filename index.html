@@ -9,7 +9,7 @@
 <body class="p-6 max-w-5xl mx-auto">
   <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />  <div id="filters" class="mt-6 hidden">
     <label class="block font-semibold">Select Country:</label>
-    <select id="countrySelect" class="border p-2 rounded mb-4"></select><div id="columnFilters" class="grid grid-cols-2 gap-4"></div>
+    <select id="countrySelect" class="border p-2 rounded mb-4"></select><div id="columnCheckboxes" class="grid grid-cols-2 gap-4 mb-4"></div>
 
 <div class="mt-6">
   <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
@@ -19,6 +19,8 @@
   </div>  <script>
     let data = [];
     let columns = [];
+    let filters = {};
+    let displayColumns = [];
 
     document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
 
@@ -36,7 +38,10 @@
         if (data.length === 0) return;
 
         columns = Object.keys(data[0]);
+        displayColumns = [...columns]; // default display all
         setupFilters();
+        setupCheckboxes();
+        applyFilters();
       };
       reader.readAsBinaryString(file);
     }
@@ -47,18 +52,41 @@
 
     function setupFilters() {
       document.getElementById('filters').classList.remove('hidden');
-
-      // Setup country select
       const countrySelect = document.getElementById('countrySelect');
       countrySelect.innerHTML = '<option value="">All</option>' + uniqueValues('Country').map(c => `<option value="${c}">${c}</option>`).join('');
+      countrySelect.onchange = () => { filters['Country'] = countrySelect.value; applyFilters(); };
+    }
 
-      countrySelect.onchange = applyFilters;
-
-      // Setup other column filters
-      const columnFilters = document.getElementById('columnFilters');
-      columnFilters.innerHTML = '';
-      columns.filter(col => col !== 'Country').forEach(col => {
+    function setupCheckboxes() {
+      const container = document.getElementById('columnCheckboxes');
+      container.innerHTML = '';
+      columns.forEach(col => {
+        const id = `checkbox-${col}`;
         const wrapper = document.createElement('div');
         wrapper.innerHTML = `
-          <label class="block font-semibold">${col}</label>
-          <select id="filter-${col}"
+          <label class="inline-flex items-center">
+            <input type="checkbox" id="${id}" checked class="mr-2">
+            ${col}
+          </label>
+        `;
+        container.appendChild(wrapper);
+        document.getElementById(id).onchange = () => {
+          displayColumns = columns.filter(c => document.getElementById(`checkbox-${c}`).checked);
+          applyFilters();
+        };
+      });
+    }
+
+    function applyFilters() {
+      const resultsTable = document.getElementById('resultsTable');
+      resultsTable.innerHTML = '';
+
+      if(displayColumns.length === 0) return;
+
+      // Build header
+      const header = `<tr>${displayColumns.map(c => `<th class="border p-2">${c}</th>`).join('')}</tr>`;
+      resultsTable.innerHTML += header;
+
+      // Filter data
+      const filtered = data.filter(row => {
+        for (let col in filters) {
