@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,16 +8,23 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="p-6 max-w-5xl mx-auto">
-  <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />  <div id="filters" class="mt-6 hidden">
+  <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>
+
+  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />
+
+  <div id="filters" class="mt-6 hidden">
     <label class="block font-semibold">Select Year:</label>
-    <select id="yearSelect" class="border p-2 rounded mb-4"></select><div id="columnCheckboxes" class="grid grid-cols-2 gap-4 mb-4"></div>
+    <select id="yearSelect" class="border p-2 rounded mb-4"></select>
 
-<div class="mt-6">
-  <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
-  <table id="resultsTable" class="w-full border text-sm"></table>
-</div>
+    <div id="columnCheckboxes" class="grid grid-cols-2 gap-4 mb-4"></div>
 
-  </div>  <script>
+    <div class="mt-6">
+      <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
+      <table id="resultsTable" class="w-full border text-sm"></table>
+    </div>
+  </div>
+
+  <script>
     let data = [];
     let columns = [];
     let filters = {};
@@ -26,8 +34,9 @@
 
     function handleFileUpload(e) {
       const file = e.target.files[0];
-      const reader = new FileReader();
+      if(!file) return;
 
+      const reader = new FileReader();
       reader.onload = (evt) => {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: "binary" });
@@ -35,23 +44,33 @@
         const ws = wb.Sheets[wsname];
         data = XLSX.utils.sheet_to_json(ws);
 
-        if (data.length === 0) return;
+        if(data.length === 0) {
+          alert("Excel file is empty or invalid!");
+          return;
+        }
+
+        if(!data[0].hasOwnProperty('Year')) {
+          alert("Excel file must have a 'Year' column!");
+          return;
+        }
 
         columns = Object.keys(data[0]).filter(c => c !== 'Year');
         displayColumns = [...columns];
-        setupYearSelect();
+
+        setupFilters();
         setupCheckboxes();
         applyFilters();
+
         document.getElementById('filters').classList.remove('hidden');
       };
       reader.readAsBinaryString(file);
     }
 
     function uniqueValues(col) {
-      return [...new Set(data.map((row) => row[col]))].filter(v => v !== undefined && v !== null);
+      return [...new Set(data.map(row => row[col]))].filter(v => v !== undefined && v !== null);
     }
 
-    function setupYearSelect() {
+    function setupFilters() {
       const yearSelect = document.getElementById('yearSelect');
       yearSelect.innerHTML = '<option value="">All</option>' + uniqueValues('Year').map(y => `<option value="${y}">${y}</option>`).join('');
       yearSelect.onchange = () => {
@@ -87,17 +106,3 @@
       if(displayColumns.length === 0) return;
 
       const header = `<tr>${displayColumns.map(c => `<th class="border p-2">${c}</th>`).join('')}</tr>`;
-      resultsTable.innerHTML += header;
-
-      const filtered = data.filter(row => {
-        if(filters['Year'] && row['Year'] != filters['Year']) return false;
-        return true;
-      });
-
-      filtered.forEach(row => {
-        const tr = `<tr>${displayColumns.map(c => `<td class="border p-2">${row[c] || ''}</td>`).join('')}</tr>`;
-        resultsTable.innerHTML += tr;
-      });
-    }
-  </script></body>
-</html>
