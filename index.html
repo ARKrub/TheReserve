@@ -8,8 +8,8 @@
 </head>
 <body class="p-6 max-w-5xl mx-auto">
   <h1 class="text-2xl font-bold mb-4">Excel Data Filter</h1>  <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4" />  <div id="filters" class="mt-6 hidden">
-    <label class="block font-semibold">Select Country:</label>
-    <select id="countrySelect" class="border p-2 rounded mb-4"></select><div id="columnCheckboxes" class="grid grid-cols-2 gap-4 mb-4"></div>
+    <label class="block font-semibold">Select Year:</label>
+    <select id="yearSelect" class="border p-2 rounded mb-4"></select><div id="columnCheckboxes" class="grid grid-cols-2 gap-4 mb-4"></div>
 
 <div class="mt-6">
   <h2 class="text-xl font-bold mb-2">Filtered Results</h2>
@@ -37,11 +37,12 @@
 
         if (data.length === 0) return;
 
-        columns = Object.keys(data[0]);
-        displayColumns = [...columns]; // default display all
-        setupFilters();
+        columns = Object.keys(data[0]).filter(c => c !== 'Year');
+        displayColumns = [...columns];
+        setupYearSelect();
         setupCheckboxes();
         applyFilters();
+        document.getElementById('filters').classList.remove('hidden');
       };
       reader.readAsBinaryString(file);
     }
@@ -50,11 +51,13 @@
       return [...new Set(data.map((row) => row[col]))].filter(v => v !== undefined && v !== null);
     }
 
-    function setupFilters() {
-      document.getElementById('filters').classList.remove('hidden');
-      const countrySelect = document.getElementById('countrySelect');
-      countrySelect.innerHTML = '<option value="">All</option>' + uniqueValues('Country').map(c => `<option value="${c}">${c}</option>`).join('');
-      countrySelect.onchange = () => { filters['Country'] = countrySelect.value; applyFilters(); };
+    function setupYearSelect() {
+      const yearSelect = document.getElementById('yearSelect');
+      yearSelect.innerHTML = '<option value="">All</option>' + uniqueValues('Year').map(y => `<option value="${y}">${y}</option>`).join('');
+      yearSelect.onchange = () => {
+        filters['Year'] = yearSelect.value;
+        applyFilters();
+      };
     }
 
     function setupCheckboxes() {
@@ -83,10 +86,18 @@
 
       if(displayColumns.length === 0) return;
 
-      // Build header
       const header = `<tr>${displayColumns.map(c => `<th class="border p-2">${c}</th>`).join('')}</tr>`;
       resultsTable.innerHTML += header;
 
-      // Filter data
       const filtered = data.filter(row => {
-        for (let col in filters) {
+        if(filters['Year'] && row['Year'] != filters['Year']) return false;
+        return true;
+      });
+
+      filtered.forEach(row => {
+        const tr = `<tr>${displayColumns.map(c => `<td class="border p-2">${row[c] || ''}</td>`).join('')}</tr>`;
+        resultsTable.innerHTML += tr;
+      });
+    }
+  </script></body>
+</html>
