@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multi-Year Multi-Index Predictor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ml-regression@6.0.0/dist/ml-regression.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin:auto; }
+input, button { margin: 5px 0; padding: 8px; }
+h2 { margin-top: 30px; }
+#checkboxContainer { margin: 10px 0; }
+#chartContainer { margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<h1>Multi-Year Multi-Index Predictor</h1>
+
+<label>Upload Excel file:</label>
+<input type="file" id="fileInput" accept=".xlsx,.xls">
+
+<div id="checkboxContainer"></div>
+
+<h2>Prediction</h2>
+<label>Enter Future Years to Predict (comma separated):</label>
+<input type="text" id="yearsInput" placeholder="e.g. 2025,2030,2035">
+<label>Polynomial Degree (1=linear, 2=quadratic, etc.):</label>
+<input type="number" id="polyDegree" value="2" min="1">
+<button id="predictBtn">Predict</button>
+<button id="exportBtn">Export Predictions to Excel</button>
+
+<p id="result"></p>
+
+<div id="chartContainer">
+  <canvas id="predictionChart" width="900" height="450"></canvas>
+</div>
+
+<script>
+let data = {};
+let columns = [];
+let chart = null;
+let lastPredictions = {};
+
+document.getElementById('fileInput').addEventListener('change', handleFile);
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const workbook = XLSX.read(evt.target.result, {type:'binary'});
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(sheet);
+    
+    if(jsonData.length === 0) { alert("Empty sheet"); return; }
+
+    columns = Object.keys(jsonData[0]).filter(c => c !== 'Year');
+    data = {};
+    columns.forEach(col => data[col] = {});
+    
+    jsonData.forEach(row => {
+      const year = row['Year'];
+      if(!year) return;
+      columns.forEach(col => {
+        const val = row[col];
+        if(val !== undefined && val !== null && val !== '') {
+          data[col][year] = val;
+        }
+      });
+    });
+
+    const container = document.getElementById('checkboxContainer');
+    container.innerHTML = '<strong>Select index(es) to predict:</strong><br>';
+    columns.forEach(col => {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = col;
+      checkbox.id = `chk_${col}`;
+      container.appendChild(checkbox);
+      const label = document.createElement('label');
+      label.htmlFor = `chk_${col}`;
+      label.innerText = col;
+      container.appendChild(label);
+      container.appendChild(document.createElement('br'));
+    });
+
+    alert('Data loaded successfully!');
+  };
+  reader.readAsBinaryString(file);
+}
+
+document.getElementById('predictBtn').addEventListener('click', predict);
+document.getElementById('exportBtn').addEventListener('click', exportExcel);
+
+function predict() {
+  const yearsInput = document.getElementById('yearsInput').value.split(',').map(y => parseInt(y.trim())).filter(y => !isNaN(y));
+  const degree = parseInt(document.getElementById('polyDegree').value);
+  if(yearsInput.length === 0 || Object.keys(data).length === 0) {
+    alert('Please load data and enter valid year(s).');
+    return;
+  }
+
+  const selectedCols = columns.filter(col => document.getElementById(`chk_${col}`).checked);
+  if(selectedCols.length === 0) {
+    alert('Please select at least one index to predict.');
+    return;
+  }
+
+  let resultText = '';
+  const datasets = [];
+  lastPredictions = {};
+
+  selectedCols.forEach(col => {
+    const colData = data[col];
+    const historicalYears = Object.keys(colData).map(y => parseInt(y));
+    const values = Object.values(colData).map(v => parseFloat(v));
+
+    // Base-1 indexing
+    const shiftedValues = values.map(v => v + 1);
+
+    // Polynomial regression
+    const regression = new MLRegression.PolynomialRegression(historicalYears, shiftedValues, degree);
+
+    lastPredictions[col] = [];
+
+    // Prepare combined years for chart: historical + future
+    const allYears = [...historicalYears, ...yearsInput];
+    const allPredictions = allYears.map(yv => {
+      const pred = regression.predict(yv) - 1;
+      // Store future predictions only
+      if(yearsInput.includes(yv)) lastPredictions[col].push({year: yv, value: pred});
+      return pred;
+    });
+
+    // Result text
+    lastPredictions[col].forEach(p => {
+      resultText += `${col}: Predicted index for year ${p.year} = ${p.value.toFixed(2)}<br>`;
+    });
+
+    // Chart dataset
+    const color = getRandomColor();
+    datasets.push({
+      label: col,
+      data: allPredictions,
+      borderColor: color,
+      backgroundColor: color + '33',
+      fill: false,
+      tension: 0.2
+    });
+  });
+
+  document.getElementById('result').innerHTML = resultText;
+
+  // Draw chart
+  if(chart) chart.destroy();
+  const ctx = document.getElementById('predictionChart').getContext('2d');
+  const labels = [...Object.keys(data[selectedCols[0]]).map(y=>y), ...yearsInput];
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Year' } },
+        y: { title: { display: true, text: 'Index Value' } }
+      }
+    }
+  });
+}
+
+function exportExcel() {
+  if(Object.keys(lastPredictions).length === 0) {
+    alert('No predictions to export. Please run a prediction first.');
+    return;
+  }
+
+  const exportData = [];
+  for(const col in lastPredictions) {
+    lastPredictions[col].forEach(p => {
+      exportData.push({ 'Index': col, 'Predicted Year': p.year, 'Predicted Value': p.value });
+    });
+  }
+
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Predictions");
+  XLSX.writeFile(wb, "Predictions.xlsx");
+}
+
+// Random color generator
+function getRandomColor() {
+  const r = Math.floor(Math.random()*200+20);
+  const g = Math.floor(Math.random()*200+20);
+  const b = Math.floor(Math.random()*200+20);
+  return `rgb(${r},${g},${b})`;
+}
+</script>
+
+</body>
+</html>
