@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Multi-Year Multi-Index Predictor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/ml-regression@6.0.0/dist/ml-regression.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin:auto; }
@@ -24,7 +24,7 @@ input, button { margin: 5px 0; padding: 8px; }
 
 <h2>Prediction</h2>
 <label>Enter Future Years to Predict (comma separated):</label>
-<input type="text" id="yearsInput" placeholder="e.g. 2025,2030,2035">
+<input type="text" id="yearsInput" placeholder="e.g. 2015,2016,2017">
 <label>Polynomial Degree (1=linear, 2=quadratic, etc.):</label>
 <input type="number" id="polyDegree" value="2" min="1">
 <button id="predictBtn">Predict</button>
@@ -45,57 +45,53 @@ let lastPredictions = {};
 document.getElementById('fileInput').addEventListener('change', handleFile);
 
 function handleFile(e) {
-  try {
-    const file = e.target.files[0];
-    if(!file) { alert("No file selected"); return; }
+  const file = e.target.files[0];
+  if(!file) { alert("No file selected"); return; }
 
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-      try {
-        const workbook = XLSX.read(evt.target.result, {type:'binary'});
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, {defval:""});
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      const workbook = XLSX.read(evt.target.result, {type:'binary'});
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, {defval:""});
 
-        if(jsonData.length === 0) { alert("Excel sheet is empty"); return; }
-        if(!jsonData[0].hasOwnProperty('Year')) { alert("Excel must have a 'Year' column"); return; }
+      if(jsonData.length === 0) { alert("Excel sheet is empty"); return; }
+      if(!jsonData[0].hasOwnProperty('Year')) { alert("Excel must have a 'Year' column"); return; }
 
-        columns = Object.keys(jsonData[0]).filter(c => c !== 'Year');
-        data = {};
-        columns.forEach(col => data[col] = {});
-        jsonData.forEach(row => {
-          const year = parseInt(row['Year']);
-          if(isNaN(year)) return;
-          columns.forEach(col => {
-            const val = parseFloat(row[col]);
-            if(!isNaN(val)) data[col][year] = val;
-          });
-        });
-
-        const container = document.getElementById('checkboxContainer');
-        container.innerHTML = '<strong>Select index(es) to predict:</strong><br>';
+      columns = Object.keys(jsonData[0]).filter(c => c !== 'Year');
+      data = {};
+      columns.forEach(col => data[col] = {});
+      jsonData.forEach(row => {
+        const year = parseInt(row['Year']);
+        if(isNaN(year)) return;
         columns.forEach(col => {
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.value = col;
-          checkbox.id = `chk_${col}`;
-          container.appendChild(checkbox);
-          const label = document.createElement('label');
-          label.htmlFor = `chk_${col}`;
-          label.innerText = col;
-          container.appendChild(label);
-          container.appendChild(document.createElement('br'));
+          const val = parseFloat(row[col]);
+          if(!isNaN(val)) data[col][year] = val;
         });
+      });
 
-        alert("Data loaded successfully!");
-      } catch(err) {
-        alert("Error reading Excel: "+err);
-      }
-    };
-    reader.readAsBinaryString(file);
-  } catch(err) {
-    alert("Error loading file: "+err);
-  }
+      const container = document.getElementById('checkboxContainer');
+      container.innerHTML = '<strong>Select index(es) to predict:</strong><br>';
+      columns.forEach(col => {
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = col;
+        checkbox.id = `chk_${col}`;
+        container.appendChild(checkbox);
+        const label = document.createElement('label');
+        label.htmlFor = `chk_${col}`;
+        label.innerText = col;
+        container.appendChild(label);
+        container.appendChild(document.createElement('br'));
+      });
+
+      alert("Data loaded successfully!");
+    } catch(err) {
+      alert("Error reading Excel: "+err);
+    }
+  };
+  reader.readAsBinaryString(file);
 }
 
 document.getElementById('predictBtn').addEventListener('click', predict);
@@ -120,18 +116,19 @@ function predict() {
       const historicalYears = Object.keys(colData).map(y=>parseInt(y));
       const values = Object.values(colData).map(v=>parseFloat(v));
 
-      const shiftedValues = values.map(v=>v+1);
-      const regression = new MLRegression.PolynomialRegression(historicalYears, shiftedValues, degree);
+      const shiftedValues = values.map(v => v+1); // Base 1 indexing
+      const trainingData = historicalYears.map((y,i)=>[y, shiftedValues[i]]);
+      const regressionResult = regression.polynomial(trainingData, { order: degree });
 
       lastPredictions[col] = [];
       const allYears = [...historicalYears, ...yearsInput];
-      const allPredictions = allYears.map(yv=>{
-        const pred = regression.predict(yv)-1;
+      const allPredictions = allYears.map(yv => {
+        const pred = regressionResult.predict(yv)[1] - 1;
         if(yearsInput.includes(yv)) lastPredictions[col].push({year: yv, value: pred});
         return pred;
       });
 
-      lastPredictions[col].forEach(p=>{
+      lastPredictions[col].forEach(p => {
         resultText += `${col}: Predicted index for year ${p.year} = ${p.value.toFixed(2)}<br>`;
       });
 
@@ -151,7 +148,7 @@ function predict() {
     if(chart) chart.destroy();
     const ctx = document.getElementById('predictionChart').getContext('2d');
     const labels = [...Object.keys(data[selectedCols[0]]).map(y=>y), ...yearsInput];
-    chart = new Chart(ctx,{
+    chart = new Chart(ctx, {
       type:'line',
       data:{labels:labels,datasets:datasets},
       options:{
@@ -160,6 +157,7 @@ function predict() {
         scales:{x:{title:{display:true,text:'Year'}},y:{title:{display:true,text:'Index Value'}}}
       }
     });
+
   } catch(err) {
     alert("Error during prediction: "+err);
   }
